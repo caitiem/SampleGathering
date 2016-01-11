@@ -42,11 +42,11 @@ public class MainActivity extends ActionBarActivity {
 	private GravityFilter gravFilter;
 	private ConnectedThread myConnectedThread;
 	private FileOutputStream dataFileStream;
-	private boolean isSampling, connectingToArduino, connectedToArduino, deviceFound, enableDiscovery;
+	private boolean isSampling, connectingToArduino, connectedToArduino, deviceFound, enableDiscovery, readyToCommunicate;
 	private File dataFile, sampleDirectory;
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
 	private TextView statusText;
-	private final int interval = 2000; // 2 Seconds
+	private final int interval = 3000; // 3 Seconds
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +59,7 @@ public class MainActivity extends ActionBarActivity {
 		connectedToArduino = false;
 		deviceFound = false;
 		enableDiscovery = true;
+		readyToCommunicate = true;
 		
 		// make directory to store sample data
 		sampleDirectory = new File("/sdcard/ActivityProfileSampleData/");
@@ -81,11 +82,31 @@ public class MainActivity extends ActionBarActivity {
 		final ToggleButton toggle = (ToggleButton) findViewById(R.id.sample_toggle);
 		toggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 		    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-		        if (isChecked && connectedToArduino) {
+		        if (isChecked && connectedToArduino && readyToCommunicate) {
 		            // The toggle is enabled
 		        	myConnectedThread.writeString("start_sample");
+		        	int sampleNum = 0;
 		        	try {
-		        		dataFile = new File(sampleDirectory, "Sample2.txt");
+		        		File directoryFiles[] = sampleDirectory.listFiles();
+		        		for (int i=0; i < directoryFiles.length; i++)
+		        		{
+		        		    Log.d(DTAG, "FileName:" + directoryFiles[i].getName());
+		        		}
+		        		if (directoryFiles.length > 0) {
+		        			int maxNum = 0;
+		        			for (int i=0; i < directoryFiles.length; i++)
+			        		{
+		        				String name = directoryFiles[i].getName();
+		        				int nameInt = Integer.parseInt(name.substring(name.length()-1));
+			        		    if (nameInt > maxNum) {
+			        		    	maxNum = nameInt;
+			        		    }
+			        		}
+		        			sampleNum = maxNum + 1;
+		        		}
+		        		File newSampleDir = new File(sampleDirectory, "Sample" + sampleNum);
+	        			newSampleDir.mkdirs();
+	        			dataFile = new File(newSampleDir, "Sample" + sampleNum + ".txt");
 		        		Log.d(DTAG, "Directory: " +getApplicationContext().getFilesDir());
 						dataFileStream = new FileOutputStream(dataFile);
 						isSampling = true;
@@ -95,21 +116,13 @@ public class MainActivity extends ActionBarActivity {
 						e.printStackTrace();
 						isSampling = false;
 					}
-		        } else if (!isChecked && connectedToArduino){
+		        } else if (!isChecked && connectedToArduino && readyToCommunicate){
 		            // The toggle is disabled
 		        	myConnectedThread.writeString("stop_sample");
-		        	try {
-		        		timeHandler.postDelayed(runnable, interval);
-						dataFileStream.close();
-						Log.d(DTAG, "Stopping sampling");
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} finally {
-						isSampling = false;
-					}
+		        	timeHandler.postDelayed(runnable, interval);
+					Log.d(DTAG, "Stopping sampling");
 		        } else {
-		        	showToast("Not Connected to Arduino");
+		        	showToast("Not Connected to Arduino or Not Ready to Communicate");
 		        	toggle.setChecked(false);
 		        }
 		    }
@@ -219,6 +232,7 @@ public class MainActivity extends ActionBarActivity {
 		connectingToArduino = false;
 		connectedToArduino = false;
 		deviceFound = false;
+		readyToCommunicate = false;
 		updateStatus("Disconnected from Arduino...");
 	}
 	
@@ -330,6 +344,7 @@ public class MainActivity extends ActionBarActivity {
 			mmOutStream = tmpOut;
 		}
 		public void run() {
+			readyToCommunicate = true;
 			byte[] buffer = new byte[1024];
 			int begin = 0;
 			int bytes = 0;
@@ -374,6 +389,9 @@ public class MainActivity extends ActionBarActivity {
 	    public void run() {
 	        if (isSampling) {
 	        	Log.d(DTAG, "Still sampling");
+	        	myConnectedThread.writeString("stop_sample");
+	        	timeHandler.postDelayed(runnable, interval);
+				Log.d(DTAG, "Sending stop sampling command again");
 	        } else {
 	        	Log.d(DTAG, "Not sampling");
 	        }
@@ -392,7 +410,7 @@ public class MainActivity extends ActionBarActivity {
 				String writeMessage = new String(writeBuf);
 				writeMessage = writeMessage.substring(begin, end);
 				//Log.d(DTAG, "writeMessage: " + writeMessage);
-				if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("X")) {
+				if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("S")) {
 //					int accelData[] = parseAccelData(writeMessage);
 //					accelData = gravFilter.filter(accelData);
 					if (isSampling) {
@@ -404,7 +422,15 @@ public class MainActivity extends ActionBarActivity {
 						}
 					}
 					//Log.d(DTAG, "X: " + accelData[0] + ", Y: " + accelData[1] + ", Z: " + accelData[2]);
-				} else if(writeMessage.length() != 0 && writeMessage.equals("Stopped Sampling")) {
+				} else if(writeMessage.length() != 0 && writeMessage.equals("stopped_sample")) {
+					Log.d(DTAG, "Stopped Sampling confirmation");
+					isSampling = false;
+					try {
+						dataFileStream.close();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 					showToast("Sampling has Stopped");
 				}
 				break;
