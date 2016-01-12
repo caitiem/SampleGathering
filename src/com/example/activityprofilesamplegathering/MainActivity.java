@@ -19,6 +19,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.Camera;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -30,12 +31,14 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
+import android.hardware.camera2.*;
 
 @SuppressLint("NewApi")
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends Activity {
 	
 	private static final String myBluetoothAddress = "20:15:07:27:98:01";
 	private static final String DTAG = "Debugging Stuff";
@@ -47,6 +50,9 @@ public class MainActivity extends ActionBarActivity {
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
 	private TextView statusText;
 	private final int interval = 3000; // 3 Seconds
+	
+	private Camera mCamera;
+    private CameraPreview mPreview;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -88,10 +94,6 @@ public class MainActivity extends ActionBarActivity {
 		        	int sampleNum = 0;
 		        	try {
 		        		File directoryFiles[] = sampleDirectory.listFiles();
-		        		for (int i=0; i < directoryFiles.length; i++)
-		        		{
-		        		    Log.d(DTAG, "FileName:" + directoryFiles[i].getName());
-		        		}
 		        		if (directoryFiles.length > 0) {
 		        			int maxNum = 0;
 		        			for (int i=0; i < directoryFiles.length; i++)
@@ -128,6 +130,15 @@ public class MainActivity extends ActionBarActivity {
 		    }
 		});
 		
+		// Create an instance of Camera
+        mCamera = getCameraInstance();
+
+
+        // Create our Preview view and set it as the content of our activity.
+        mPreview = new CameraPreview(this, mCamera);
+        FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
+        preview.addView(mPreview);
+		
 	}
 	
 	@Override
@@ -135,7 +146,20 @@ public class MainActivity extends ActionBarActivity {
 	    if (mReceiver != null) {
 	        this.unregisterReceiver(mReceiver);
 	    }
+	    mCamera.release();
 	    super.onDestroy();
+	}
+	
+	/** A safe way to get an instance of the Camera object. */
+	public static Camera getCameraInstance(){
+	    Camera c = null;
+	    try {
+	        c = Camera.open(); // attempt to get a Camera instance
+	    }
+	    catch (Exception e){
+	        // Camera is not available (in use or does not exist)
+	    }
+	    return c; // returns null if camera is unavailable
 	}
 	
 	@Override
@@ -367,15 +391,15 @@ public class MainActivity extends ActionBarActivity {
 			}
 		}
 		public void write(byte[] bytes) {
-			try {
-				mmOutStream.write(bytes);
-				mmOutStream.flush();
-				Log.d(DTAG, "wrote bytes");
-			} catch (IOException e) { }
+//			try {
+				//mmOutStream.write(bytes);
+				//mmOutStream.flush();
+//				Log.d(DTAG, "wrote bytes");
+//			} catch (IOException e) { }
 		}
 		public void writeString(String string) {
-			PrintStream printStream = new PrintStream(mmOutStream);
-			printStream.print(string);
+			//PrintStream printStream = new PrintStream(mmOutStream);
+			//printStream.print(string);
 		}
 		public void cancel() {
 			try {

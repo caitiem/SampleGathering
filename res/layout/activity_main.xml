@@ -31,4 +31,15 @@
         android:clickable="false"
         android:textIsSelectable="false" />
 
+    <FrameLayout
+        android:id="@+id/camera_preview"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/sample_toggle"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentBottom="true" >
+
+    </FrameLayout>
+
 </RelativeLayout>
