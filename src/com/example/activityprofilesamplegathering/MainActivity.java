@@ -153,21 +153,6 @@ public class MainActivity extends Activity {
 		        	timeHandler.postDelayed(runnable, interval);
 					Log.d(DTAG, "Stopping sampling");
 					
-					// stop recording and release camera
-					if (isPrepared) {
-						try { 
-							mMediaRecorder.stop();	// stop the recording
-						}catch (Throwable t) {
-							t.printStackTrace();
-							Log.d(DTAG, "STOP FAILED: " + t);
-						}
-					}
-	                releaseMediaRecorder(); // release the MediaRecorder object
-	                if (mCamera != null) {
-	                	mCamera.lock();         // take camera access back from MediaRecorder
-	                }
-
-	                isRecording = false;
 		        } else {
 		        	showToast("Not Connected to Arduino or Not Ready to Communicate");
 		        	// prepare didn't work, release the camera
@@ -569,6 +554,23 @@ public class MainActivity extends Activity {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
+					
+					// stop recording and release camera
+					if (isPrepared) {
+						try { 
+							mMediaRecorder.stop();	// stop the recording
+						}catch (Throwable t) {
+							t.printStackTrace();
+							Log.d(DTAG, "STOP FAILED: " + t);
+						}
+					}
+	                releaseMediaRecorder(); // release the MediaRecorder object
+	                if (mCamera != null) {
+	                	mCamera.lock();         // take camera access back from MediaRecorder
+	                }
+
+	                isRecording = false;
+					
 					showToast("Sampling has Stopped");
 				}
 				break;
