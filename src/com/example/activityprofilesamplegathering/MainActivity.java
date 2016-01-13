@@ -5,6 +5,7 @@ package com.example.activityprofilesamplegathering;
 
 import java.io.*;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import android.support.v7.app.ActionBarActivity;
@@ -20,6 +21,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.Camera;
+import android.hardware.Camera.Size;
+import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
+import android.media.MediaRecorder.AudioEncoder;
+import android.media.MediaRecorder.OutputFormat;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -28,6 +34,7 @@ import android.os.ParcelUuid;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -46,13 +53,20 @@ public class MainActivity extends Activity {
 	private ConnectedThread myConnectedThread;
 	private FileOutputStream dataFileStream;
 	private boolean isSampling, connectingToArduino, connectedToArduino, deviceFound, enableDiscovery, readyToCommunicate;
-	private File dataFile, sampleDirectory;
+	private File dataFile, sampleDirectory, sampleDirWithNum;
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
 	private TextView statusText;
 	private final int interval = 3000; // 3 Seconds
 	
 	private Camera mCamera;
     private CameraPreview mPreview;
+    MediaRecorder mMediaRecorder;
+    private boolean isRecording, isPrepared;
+    
+    public static final int MEDIA_TYPE_IMAGE = 1;
+    public static final int MEDIA_TYPE_VIDEO = 2;
+    
+    int sampleNum = 0;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +80,7 @@ public class MainActivity extends Activity {
 		deviceFound = false;
 		enableDiscovery = true;
 		readyToCommunicate = true;
+		isRecording = false;
 		
 		// make directory to store sample data
 		sampleDirectory = new File("/sdcard/ActivityProfileSampleData/");
@@ -88,10 +103,10 @@ public class MainActivity extends Activity {
 		final ToggleButton toggle = (ToggleButton) findViewById(R.id.sample_toggle);
 		toggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 		    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-		        if (isChecked && connectedToArduino && readyToCommunicate) {
+		        if (isChecked/* && connectedToArduino && readyToCommunicate*/) {
 		            // The toggle is enabled
 		        	myConnectedThread.writeString("start_sample");
-		        	int sampleNum = 0;
+		        	sampleNum = 0;
 		        	try {
 		        		File directoryFiles[] = sampleDirectory.listFiles();
 		        		if (directoryFiles.length > 0) {
@@ -106,39 +121,61 @@ public class MainActivity extends Activity {
 			        		}
 		        			sampleNum = maxNum + 1;
 		        		}
-		        		File newSampleDir = new File(sampleDirectory, "Sample" + sampleNum);
-	        			newSampleDir.mkdirs();
-	        			dataFile = new File(newSampleDir, "Sample" + sampleNum + ".txt");
+		        		sampleDirWithNum = new File(sampleDirectory, "Sample" + sampleNum);
+		        		sampleDirWithNum.mkdirs();
+	        			dataFile = new File(sampleDirWithNum, "Sample" + sampleNum + ".txt");
 		        		Log.d(DTAG, "Directory: " +getApplicationContext().getFilesDir());
 						dataFileStream = new FileOutputStream(dataFile);
 						isSampling = true;
 						Log.d(DTAG, "Starting sampling");
+						
+						if (isPrepared = prepareVideoRecorder()) {
+		                    // Camera is available and unlocked, MediaRecorder is prepared,
+		                    // now you can start recording
+							try { 
+								mMediaRecorder.start();;
+							}catch (Throwable t) {
+								t.printStackTrace();
+								Log.d(DTAG, "START FAILED: " + t);
+							}
+
+		                    // inform the user that recording has started
+		                    isRecording = true;
+						}
 					} catch (FileNotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 						isSampling = false;
 					}
-		        } else if (!isChecked && connectedToArduino && readyToCommunicate){
+		        } else if (!isChecked/* && connectedToArduino && readyToCommunicate*/){
 		            // The toggle is disabled
 		        	myConnectedThread.writeString("stop_sample");
 		        	timeHandler.postDelayed(runnable, interval);
 					Log.d(DTAG, "Stopping sampling");
+					
+					// stop recording and release camera
+					if (isPrepared) {
+						try { 
+							mMediaRecorder.stop();	// stop the recording
+						}catch (Throwable t) {
+							t.printStackTrace();
+							Log.d(DTAG, "STOP FAILED: " + t);
+						}
+					}
+	                releaseMediaRecorder(); // release the MediaRecorder object
+	                if (mCamera != null) {
+	                	mCamera.lock();         // take camera access back from MediaRecorder
+	                }
+
+	                isRecording = false;
 		        } else {
 		        	showToast("Not Connected to Arduino or Not Ready to Communicate");
+		        	// prepare didn't work, release the camera
+                    releaseMediaRecorder();
 		        	toggle.setChecked(false);
 		        }
 		    }
 		});
-		
-		// Create an instance of Camera
-        mCamera = getCameraInstance();
-
-
-        // Create our Preview view and set it as the content of our activity.
-        mPreview = new CameraPreview(this, mCamera);
-        FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
-        preview.addView(mPreview);
-		
 	}
 	
 	@Override
@@ -146,7 +183,6 @@ public class MainActivity extends Activity {
 	    if (mReceiver != null) {
 	        this.unregisterReceiver(mReceiver);
 	    }
-	    mCamera.release();
 	    super.onDestroy();
 	}
 	
@@ -154,7 +190,7 @@ public class MainActivity extends Activity {
 	public static Camera getCameraInstance(){
 	    Camera c = null;
 	    try {
-	        c = Camera.open(); // attempt to get a Camera instance
+	        c = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK); // attempt to get a Camera instance
 	    }
 	    catch (Exception e){
 	        // Camera is not available (in use or does not exist)
@@ -172,7 +208,42 @@ public class MainActivity extends Activity {
 		} else {
 			Log.d(DTAG, "Still connected to arduino");
 		}
+		// Create an instance of Camera
+		if (mCamera == null) {
+			mCamera = getCameraInstance();
+
+	        // Create our Preview view and set it as the content of our activity.
+	        mPreview = new CameraPreview(this, mCamera);
+	        FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
+	        preview.addView(mPreview);
+		}
+        
 	}
+	
+	private void releaseMediaRecorder(){
+        if (mMediaRecorder != null) {
+            mMediaRecorder.reset();   // clear recorder configuration
+            mMediaRecorder.release(); // release the recorder object
+            mMediaRecorder = null;
+            if (mCamera != null) {
+            	mCamera.lock();           // lock camera for later use
+            }
+        }
+    }
+
+    private void releaseCamera(){
+        if (mCamera != null){
+        	try {
+        		mCamera.stopPreview();
+    			mCamera.setPreviewDisplay(null);
+    			mCamera.release();        // release the camera for other applications
+                mCamera = null;
+    		} catch (IOException e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}
+        }
+    }
 	
 	private void startDiscoverBluetooth() {
 		enableDiscovery = true;
@@ -191,6 +262,8 @@ public class MainActivity extends Activity {
 	protected void onPause() {
 	    super.onPause();
 	    stopDiscoverBluetooth();
+	    releaseMediaRecorder();       // if you are using MediaRecorder, release it first
+        releaseCamera();              // release the camera immediately on pause event
 	}
 	
 	private void setFoundArduino() {
@@ -261,7 +334,7 @@ public class MainActivity extends Activity {
 	}
 	
 	private void setConnectedToArduino() {
-		showToast("Connected to Arduino");
+		//showToast("Connected to Arduino");
     	connectingToArduino = false;
     	connectedToArduino = true;
     	updateStatus("Connected to Arduino.");
@@ -391,21 +464,62 @@ public class MainActivity extends Activity {
 			}
 		}
 		public void write(byte[] bytes) {
-//			try {
-				//mmOutStream.write(bytes);
-				//mmOutStream.flush();
+			try {
+				mmOutStream.write(bytes);
+				mmOutStream.flush();
 //				Log.d(DTAG, "wrote bytes");
-//			} catch (IOException e) { }
+			} catch (IOException e) { }
 		}
 		public void writeString(String string) {
-			//PrintStream printStream = new PrintStream(mmOutStream);
-			//printStream.print(string);
+			PrintStream printStream = new PrintStream(mmOutStream);
+			printStream.print(string);
 		}
 		public void cancel() {
 			try {
 				mmSocket.close();
 			} catch (IOException e) { }
 		}
+	}
+	
+	private boolean prepareVideoRecorder(){
+	    
+	    if (mCamera == null) {
+	    	return false;
+	    }
+	    
+	    mMediaRecorder = new MediaRecorder();
+	    
+	    // Step 1: Unlock and set camera to MediaRecorder
+	    mCamera.unlock();
+	    mMediaRecorder.setCamera(mCamera);
+
+	    // Step 2: Set sources
+	    mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
+	    mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+
+	    // Step 3: Set a CamcorderProfile (requires API Level 8 or higher)
+	    mMediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
+//	    mMediaRecorder.setProfile(CamcorderProfile.get(Camera.CameraInfo.CAMERA_FACING_BACK, CamcorderProfile.QUALITY_HIGH));
+
+	    // Step 4: Set output file
+	    mMediaRecorder.setOutputFile(getOutputMediaFile(MEDIA_TYPE_VIDEO).toString());
+
+	    // Step 5: Set the preview output
+	    mMediaRecorder.setPreviewDisplay(mPreview.getHolder().getSurface());
+
+	    // Step 6: Prepare configured MediaRecorder
+	    try {
+	        mMediaRecorder.prepare();
+	    } catch (IllegalStateException e) {
+	        Log.d(DTAG, "IllegalStateException preparing MediaRecorder: " + e.getMessage());
+	        releaseMediaRecorder();
+	        return false;
+	    } catch (IOException e) {
+	        Log.d(DTAG, "IOException preparing MediaRecorder: " + e.getMessage());
+	        releaseMediaRecorder();
+	        return false;
+	    }
+	    return true;
 	}
 	
 	private Handler timeHandler = new Handler();
@@ -461,6 +575,25 @@ public class MainActivity extends Activity {
 			}
 		}
 	};
+	
+	/** Create a File for saving an image or video */
+	private File getOutputMediaFile(int type){
+
+	    // Create a media file name
+	    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+	    File mediaFile;
+	    if (type == MEDIA_TYPE_IMAGE){
+	        mediaFile = new File(sampleDirWithNum.getPath() + File.separator +
+	        "IMG_"+ timeStamp + ".jpg");
+	    } else if(type == MEDIA_TYPE_VIDEO) {
+	        mediaFile = new File(sampleDirWithNum.getPath() + File.separator +
+	        "VID_"+ timeStamp + ".mp4");
+	    } else {
+	        return null;
+	    }
+
+	    return mediaFile;
+	}
 	
 	private int[] parseAccelData(String accelData) {
 		int accelArray[] = new int[3];
