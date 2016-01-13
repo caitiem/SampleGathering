@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
 	private boolean isSampling, connectingToArduino, connectedToArduino, deviceFound, enableDiscovery, readyToCommunicate;
 	private File dataFile, sampleDirectory, sampleDirWithNum;
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
-	private TextView statusText;
+	private TextView statusText, samplingText;
 	private final int interval = 3000; // 3 Seconds
 	
 	private Camera mCamera;
@@ -98,6 +98,11 @@ public class MainActivity extends Activity {
 	    
 	    // status textview for bluetooth status updates
 	    statusText = (TextView) findViewById(R.id.status_text);
+	    
+	    // sampling textview for sampling status updates
+	    samplingText = (TextView) findViewById(R.id.sampling_status);
+	    
+	    updateSamplingStatus("Not sampling.");
 		
 	    // toggle button for sampling
 		final ToggleButton toggle = (ToggleButton) findViewById(R.id.sample_toggle);
@@ -142,6 +147,7 @@ public class MainActivity extends Activity {
 		                    // inform the user that recording has started
 		                    isRecording = true;
 						}
+						updateSamplingStatus("Sampling.");
 					} catch (FileNotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -351,6 +357,16 @@ public class MainActivity extends Activity {
 	        public void run()
 	        {
 	        	statusText.setText(text);
+	        }
+	    });
+	}
+	
+	// set the sampling status
+	private void updateSamplingStatus(final String text) {
+		runOnUiThread(new Runnable() {
+	        public void run()
+	        {
+	        	samplingText.setText(text);
 	        }
 	    });
 	}
@@ -572,6 +588,7 @@ public class MainActivity extends Activity {
 	                isRecording = false;
 					
 					showToast("Sampling has Stopped");
+					updateSamplingStatus("Not sampling.");
 				}
 				break;
 			}
