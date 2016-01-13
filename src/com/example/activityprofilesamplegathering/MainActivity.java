@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
 	private File dataFile, sampleDirectory, sampleDirWithNum;
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
 	private TextView bluetoothText, samplingText;
-	private final int interval = 3000; // 3 Seconds
+	private final int interval = 2000; // 2 Seconds
 	
 	private Camera mCamera;
     private CameraPreview mPreview;
@@ -66,6 +66,8 @@ public class MainActivity extends Activity {
     public static final int MEDIA_TYPE_VIDEO = 2;
     
     int sampleNum = 0;
+    
+    FrameLayout cameraPreview;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -142,6 +144,7 @@ public class MainActivity extends Activity {
 		        	myConnectedThread.writeString("stop_sample");	// tell arduino to stop sampling
 		        	timeHandler.postDelayed(runnable, interval);	// set delay to check that arduino has confirmed stop sampling
 					Log.d(DTAG, "Stopping sampling");
+					enableToggle(false);	// disable toggle button until arduino sends stop confirmation
 					
 		        } else {
 		        	showToast("Not Connected to Arduino or Not Ready to Communicate");
@@ -151,6 +154,9 @@ public class MainActivity extends Activity {
 		        }
 		    }
 		});
+		
+		// get camera_preview framelayout
+		cameraPreview = (FrameLayout) findViewById(R.id.camera_preview);
 	}
 	
 	// get next folder sample number
@@ -208,8 +214,7 @@ public class MainActivity extends Activity {
 
 	        // Create our Preview view and set it as the content of our activity.
 	        mPreview = new CameraPreview(this, mCamera);
-	        FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
-	        preview.addView(mPreview);
+	        cameraPreview.addView(mPreview);
 		}
         
 	}
@@ -227,15 +232,15 @@ public class MainActivity extends Activity {
 
     private void releaseCamera(){
         if (mCamera != null){
-        	try {
-        		mCamera.stopPreview();		// stop preview
-    			mCamera.setPreviewDisplay(null);	// set preview display to null
+//        	try {
+//        		mCamera.stopPreview();		// stop preview
+//    			mCamera.setPreviewDisplay(null);	// set preview display to null
     			mCamera.release();        // release the camera for other applications
                 mCamera = null;
-    		} catch (IOException e) {
-    			// TODO Auto-generated catch block
-    			e.printStackTrace();
-    		}
+//    		} catch (IOException e) {
+//    			// TODO Auto-generated catch block
+//    			e.printStackTrace();
+//    		}
         }
     }
 	
@@ -258,6 +263,8 @@ public class MainActivity extends Activity {
 	    stopDiscoverBluetooth();
 	    releaseMediaRecorder();       // if you are using MediaRecorder, release it first
         releaseCamera();              // release the camera immediately on pause event
+        // remove mPreview from camera_preview
+        cameraPreview.removeView(mPreview);
 	}
 	
 	private void setFoundArduino() {
@@ -360,6 +367,17 @@ public class MainActivity extends Activity {
 	        public void run()
 	        {
 	        	bluetoothText.setText(text);
+	        }
+	    });
+	}
+	
+	// enable / disable toggle button
+	private void enableToggle(final boolean enabled) {
+		runOnUiThread(new Runnable() {
+	        public void run()
+	        {
+	        	ToggleButton toggle = (ToggleButton) findViewById(R.id.sample_toggle);
+	        	toggle.setEnabled(enabled);
 	        }
 	    });
 	}
@@ -531,8 +549,8 @@ public class MainActivity extends Activity {
 	    public void run() {
 	        if (isSampling) {
 	        	Log.d(DTAG, "Still sampling");
-	        	myConnectedThread.writeString("stop_sample");
-	        	timeHandler.postDelayed(runnable, interval);
+	        	myConnectedThread.writeString("stop_sample");	// tell arduino to stop sending
+	        	timeHandler.postDelayed(runnable, interval);	// set delay to check after 2s if arduino sent stop confirmation
 				Log.d(DTAG, "Sending stop sampling command again");
 	        } else {
 	        	Log.d(DTAG, "Not sampling");
@@ -582,8 +600,10 @@ public class MainActivity extends Activity {
 	                	mCamera.lock();         // take camera access back from MediaRecorder
 	                }
 					
-					showToast("Sampling has Stopped");
+//					showToast("Sampling has Stopped");
 					updateSamplingStatus("Not sampling.");
+					
+					enableToggle(true);		// enable toggle button since arduino stop confirmation has been received
 				}
 				break;
 			}
