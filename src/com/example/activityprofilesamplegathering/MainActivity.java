@@ -49,7 +49,6 @@ public class MainActivity extends Activity {
 	
 	private static final String myBluetoothAddress = "20:15:07:27:98:01";
 	private static final String DTAG = "Debugging Stuff";
-	private GravityFilter gravFilter;
 	private ConnectedThread myConnectedThread;
 	private FileOutputStream dataFileStream;
 	private boolean isSampling, connectingToArduino, connectedToArduino, deviceFound, enableDiscovery, readyToCommunicate;
@@ -61,7 +60,7 @@ public class MainActivity extends Activity {
 	private Camera mCamera;
     private CameraPreview mPreview;
     MediaRecorder mMediaRecorder;
-    private boolean isRecording, isPrepared;
+    private boolean isPrepared;
     
     public static final int MEDIA_TYPE_IMAGE = 1;
     public static final int MEDIA_TYPE_VIDEO = 2;
@@ -73,6 +72,7 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
+		// set default start values
 		dataFileStream = null;
 		isSampling = false;
 		dataFile = null;
@@ -80,7 +80,6 @@ public class MainActivity extends Activity {
 		deviceFound = false;
 		enableDiscovery = true;
 		readyToCommunicate = true;
-		isRecording = false;
 		
 		// make directory to store sample data
 		sampleDirectory = new File("/sdcard/ActivityProfileSampleData/");
@@ -102,30 +101,18 @@ public class MainActivity extends Activity {
 	    // sampling textview for sampling status updates
 	    samplingText = (TextView) findViewById(R.id.sampling_status);
 	    
+	    // app starts out not sampling
 	    updateSamplingStatus("Not sampling.");
 		
 	    // toggle button for sampling
 		final ToggleButton toggle = (ToggleButton) findViewById(R.id.sample_toggle);
 		toggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
 		    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-		        if (isChecked/* && connectedToArduino && readyToCommunicate*/) {
+		        if (isChecked && connectedToArduino && readyToCommunicate) {
 		            // The toggle is enabled
-		        	myConnectedThread.writeString("start_sample");
-		        	sampleNum = 0;
+		        	myConnectedThread.writeString("start_sample");	// tell arduino to start sampling
+		        	sampleNum = getNextFileSampleNum();		// get next file sample number
 		        	try {
-		        		File directoryFiles[] = sampleDirectory.listFiles();
-		        		if (directoryFiles.length > 0) {
-		        			int maxNum = 0;
-		        			for (int i=0; i < directoryFiles.length; i++)
-			        		{
-		        				String name = directoryFiles[i].getName();
-		        				int nameInt = Integer.parseInt(name.substring(name.length()-1));
-			        		    if (nameInt > maxNum) {
-			        		    	maxNum = nameInt;
-			        		    }
-			        		}
-		        			sampleNum = maxNum + 1;
-		        		}
 		        		sampleDirWithNum = new File(sampleDirectory, "Sample" + sampleNum);
 		        		sampleDirWithNum.mkdirs();
 	        			dataFile = new File(sampleDirWithNum, "Sample" + sampleNum + ".txt");
@@ -143,9 +130,6 @@ public class MainActivity extends Activity {
 								t.printStackTrace();
 								Log.d(DTAG, "START FAILED: " + t);
 							}
-
-		                    // inform the user that recording has started
-		                    isRecording = true;
 						}
 						updateSamplingStatus("Sampling.");
 					} catch (FileNotFoundException e) {
@@ -153,10 +137,10 @@ public class MainActivity extends Activity {
 						e.printStackTrace();
 						isSampling = false;
 					}
-		        } else if (!isChecked/* && connectedToArduino && readyToCommunicate*/){
+		        } else if (!isChecked && connectedToArduino && readyToCommunicate){
 		            // The toggle is disabled
-		        	myConnectedThread.writeString("stop_sample");
-		        	timeHandler.postDelayed(runnable, interval);
+		        	myConnectedThread.writeString("stop_sample");	// tell arduino to stop sampling
+		        	timeHandler.postDelayed(runnable, interval);	// set delay to check that arduino has confirmed stop sampling
 					Log.d(DTAG, "Stopping sampling");
 					
 		        } else {
@@ -167,6 +151,25 @@ public class MainActivity extends Activity {
 		        }
 		    }
 		});
+	}
+	
+	// get next folder sample number
+	public int getNextFileSampleNum() {
+		int num = 0;
+		File directoryFiles[] = sampleDirectory.listFiles();
+		if (directoryFiles.length > 0) {
+			int maxNum = 0;
+			for (int i=0; i < directoryFiles.length; i++)
+    		{
+				String name = directoryFiles[i].getName();
+				int nameInt = Integer.parseInt(name.substring(name.length()-1));
+    		    if (nameInt > maxNum) {
+    		    	maxNum = nameInt;
+    		    }
+    		}
+			num = maxNum + 1;
+		}
+		return num;
 	}
 	
 	@Override
@@ -225,8 +228,8 @@ public class MainActivity extends Activity {
     private void releaseCamera(){
         if (mCamera != null){
         	try {
-        		mCamera.stopPreview();
-    			mCamera.setPreviewDisplay(null);
+        		mCamera.stopPreview();		// stop preview
+    			mCamera.setPreviewDisplay(null);	// set preview display to null
     			mCamera.release();        // release the camera for other applications
                 mCamera = null;
     		} catch (IOException e) {
@@ -484,6 +487,7 @@ public class MainActivity extends Activity {
 	
 	private boolean prepareVideoRecorder(){
 	    
+		// return false if app doesn't have camera
 	    if (mCamera == null) {
 	    	return false;
 	    }
@@ -500,7 +504,6 @@ public class MainActivity extends Activity {
 
 	    // Step 3: Set a CamcorderProfile (requires API Level 8 or higher)
 	    mMediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
-//	    mMediaRecorder.setProfile(CamcorderProfile.get(Camera.CameraInfo.CAMERA_FACING_BACK, CamcorderProfile.QUALITY_HIGH));
 
 	    // Step 4: Set output file
 	    mMediaRecorder.setOutputFile(getOutputMediaFile(MEDIA_TYPE_VIDEO).toString());
@@ -548,26 +551,20 @@ public class MainActivity extends Activity {
 			case 1:
 				String writeMessage = new String(writeBuf);
 				writeMessage = writeMessage.substring(begin, end);
-				//Log.d(DTAG, "writeMessage: " + writeMessage);
 				if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("S")) {
-//					int accelData[] = parseAccelData(writeMessage);
-//					accelData = gravFilter.filter(accelData);
 					if (isSampling) {
 						try {
 							dataFileStream.write(writeMessage.getBytes());
 						} catch (IOException e) {
-							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
 					}
-					//Log.d(DTAG, "X: " + accelData[0] + ", Y: " + accelData[1] + ", Z: " + accelData[2]);
 				} else if(writeMessage.length() != 0 && writeMessage.equals("stopped_sample")) {
 					Log.d(DTAG, "Stopped Sampling confirmation");
 					isSampling = false;
 					try {
-						dataFileStream.close();
+						dataFileStream.close();		// close data file
 					} catch (IOException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 					
@@ -584,8 +581,6 @@ public class MainActivity extends Activity {
 	                if (mCamera != null) {
 	                	mCamera.lock();         // take camera access back from MediaRecorder
 	                }
-
-	                isRecording = false;
 					
 					showToast("Sampling has Stopped");
 					updateSamplingStatus("Not sampling.");
@@ -612,23 +607,6 @@ public class MainActivity extends Activity {
 	    }
 
 	    return mediaFile;
-	}
-	
-	private int[] parseAccelData(String accelData) {
-		int accelArray[] = new int[3];
-		String temp = accelData.substring(accelData.indexOf('X') + 1, accelData.indexOf('Y'));
-		if (temp != null) {
-			accelArray[0] = Integer.parseInt(temp);
-		}
-		temp = accelData.substring(accelData.indexOf('Y') + 1, accelData.indexOf('Z'));
-		if (temp != null) {
-			accelArray[1] = Integer.parseInt(temp);
-		}
-		temp = accelData.substring(accelData.indexOf('Z') + 1);
-		if (temp != null) {
-			accelArray[2] = Integer.parseInt(temp);
-		}
-		return accelArray;
 	}
 
 	@Override
