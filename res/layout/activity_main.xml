@@ -22,7 +22,7 @@
         android:textOn="Stop Sample" />
 
     <TextView
-        android:id="@+id/status_text"
+        android:id="@+id/bluetooth_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignTop="@+id/sample_toggle"
@@ -47,9 +47,11 @@
         android:id="@+id/sampling_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/status_text"
-        android:layout_alignBottom="@+id/status_text"
+        android:layout_alignBaseline="@+id/bluetooth_status"
+        android:layout_alignBottom="@+id/bluetooth_status"
         android:layout_alignRight="@+id/camera_preview"
-        android:text="" />
+        android:text=""
+        android:clickable="false"
+        android:textIsSelectable="false" />
 
 </RelativeLayout>

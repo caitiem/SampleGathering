@@ -2023,6 +2023,7 @@ containing a value of this type.
         public static final int alertTitle=0x7f090030;
         public static final int always=0x7f090019;
         public static final int beginning=0x7f09001e;
+        public static final int bluetooth_status=0x7f090051;
         public static final int buttonPanel=0x7f09002b;
         public static final int camera_preview=0x7f090052;
         public static final int cancel_action=0x7f090055;
@@ -2087,7 +2088,6 @@ containing a value of this type.
         public static final int src_in=0x7f090017;
         public static final int src_over=0x7f090018;
         public static final int status_bar_latest_event_content=0x7f090056;
-        public static final int status_text=0x7f090051;
         public static final int submit_area=0x7f09004c;
         public static final int tabMode=0x7f09000c;
         public static final int text=0x7f09005e;

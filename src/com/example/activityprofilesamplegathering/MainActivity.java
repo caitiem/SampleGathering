@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
 	private boolean isSampling, connectingToArduino, connectedToArduino, deviceFound, enableDiscovery, readyToCommunicate;
 	private File dataFile, sampleDirectory, sampleDirWithNum;
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
-	private TextView statusText, samplingText;
+	private TextView bluetoothText, samplingText;
 	private final int interval = 3000; // 3 Seconds
 	
 	private Camera mCamera;
@@ -97,7 +97,7 @@ public class MainActivity extends Activity {
 	    this.registerReceiver(mReceiver, filter4);
 	    
 	    // status textview for bluetooth status updates
-	    statusText = (TextView) findViewById(R.id.status_text);
+	    bluetoothText = (TextView) findViewById(R.id.bluetooth_status);
 	    
 	    // sampling textview for sampling status updates
 	    samplingText = (TextView) findViewById(R.id.sampling_status);
@@ -238,7 +238,7 @@ public class MainActivity extends Activity {
 	
 	private void startDiscoverBluetooth() {
 		enableDiscovery = true;
-    	updateStatus("Looking for Arduino...");
+		updateBluetoothStatus("Looking for Arduino...");
 		BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     	mBluetoothAdapter.startDiscovery();
 	}
@@ -259,7 +259,7 @@ public class MainActivity extends Activity {
 	
 	private void setFoundArduino() {
 		deviceFound = true;
-		updateStatus("Found Arduino.");
+		updateBluetoothStatus("Found Arduino.");
 	}
 	
 	//The BroadcastReceiver that listens for bluetooth broadcasts
@@ -321,20 +321,20 @@ public class MainActivity extends Activity {
 		connectedToArduino = false;
 		deviceFound = false;
 		readyToCommunicate = false;
-		updateStatus("Disconnected from Arduino...");
+		updateBluetoothStatus("Disconnected from Arduino...");
 	}
 	
 	private void setConnectedToArduino() {
 		//showToast("Connected to Arduino");
     	connectingToArduino = false;
     	connectedToArduino = true;
-    	updateStatus("Connected to Arduino.");
+    	updateBluetoothStatus("Connected to Arduino.");
 	}
 	
 	private void setConnectingToArduino() {
 		connectingToArduino = true;
 		connectedToArduino = false;
-		updateStatus("Connecting to Arduino...");
+		updateBluetoothStatus("Connecting to Arduino...");
 	}
 	
 	private void enableAndDiscoverBluetooth() {
@@ -352,11 +352,11 @@ public class MainActivity extends Activity {
 	}
 	
 	// set the bluetooth status update
-	private void updateStatus(final String text) {
+	private void updateBluetoothStatus(final String text) {
 		runOnUiThread(new Runnable() {
 	        public void run()
 	        {
-	        	statusText.setText(text);
+	        	bluetoothText.setText(text);
 	        }
 	    });
 	}
