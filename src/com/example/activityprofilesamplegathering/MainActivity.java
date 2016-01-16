@@ -127,10 +127,10 @@ public class MainActivity extends Activity {
 		                    // Camera is available and unlocked, MediaRecorder is prepared,
 		                    // now you can start recording
 							try { 
-								mMediaRecorder.start();;
-							}catch (Throwable t) {
-								t.printStackTrace();
-								Log.d(DTAG, "START FAILED: " + t);
+								mMediaRecorder.start();
+							}catch (Exception e) {
+								e.printStackTrace();
+								Log.d(DTAG, "START FAILED: " + e.getMessage());
 							}
 						}
 						updateSamplingStatus("Sampling.");
@@ -191,6 +191,7 @@ public class MainActivity extends Activity {
 	    Camera c = null;
 	    try {
 	        c = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK); // attempt to get a Camera instance
+	        Camera.Parameters param = c.getParameters();
 	    }
 	    catch (Exception e){
 	        // Camera is not available (in use or does not exist)
@@ -232,15 +233,15 @@ public class MainActivity extends Activity {
 
     private void releaseCamera(){
         if (mCamera != null){
-//        	try {
-//        		mCamera.stopPreview();		// stop preview
-//    			mCamera.setPreviewDisplay(null);	// set preview display to null
+        	try {
+        		mCamera.stopPreview();		// stop preview
+    			mCamera.setPreviewDisplay(null);	// set preview display to null
     			mCamera.release();        // release the camera for other applications
                 mCamera = null;
-//    		} catch (IOException e) {
-//    			// TODO Auto-generated catch block
-//    			e.printStackTrace();
-//    		}
+    		} catch (IOException e) {
+    			// TODO Auto-generated catch block
+    			e.printStackTrace();
+    		}
         }
     }
 	
@@ -464,15 +465,54 @@ public class MainActivity extends Activity {
 		}
 		public void run() {
 			readyToCommunicate = true;
-			byte[] buffer = new byte[1024];
+			byte[] buffer = new byte[500];
 			int begin = 0;
 			int bytes = 0;
+			byte end = "#".getBytes()[0];
 			while (true) {
 				try {
 					bytes += mmInStream.read(buffer, bytes, buffer.length - bytes);
 					for(int i = begin; i < bytes; i++) {
-						if(buffer[i] == "#".getBytes()[0]) {
-							mHandler.obtainMessage(1, begin, i, buffer).sendToTarget();
+						if(buffer[i] == end) {
+//							mHandler.obtainMessage(1, begin, i, buffer).sendToTarget();
+							String writeMessage = new String(buffer);
+							writeMessage = writeMessage.substring(begin, i);
+							if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("S")) {
+								if (isSampling) {
+									try {
+										dataFileStream.write((writeMessage + "\n").getBytes());
+									} catch (IOException e) {
+										e.printStackTrace();
+									}
+								}
+							} else if(writeMessage.length() != 0 && writeMessage.equals("stopped_sample")) {
+								Log.d(DTAG, "Stopped Sampling confirmation");
+								isSampling = false;
+								try {
+									dataFileStream.close();		// close data file
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+								
+								// stop recording and release camera
+								if (isPrepared) {
+									try { 
+										mMediaRecorder.stop();	// stop the recording
+									}catch (Throwable t) {
+										t.printStackTrace();
+										Log.d(DTAG, "STOP FAILED: " + t);
+									}
+								}
+				                releaseMediaRecorder(); // release the MediaRecorder object
+				                if (mCamera != null) {
+				                	mCamera.lock();         // take camera access back from MediaRecorder
+				                }
+								
+//								showToast("Sampling has Stopped");
+								updateSamplingStatus("Not sampling.");
+								
+								enableToggle(true);		// enable toggle button since arduino stop confirmation has been received
+							}
 							begin = i + 1;
 							if(i == bytes - 1) {
 								bytes = 0;
@@ -512,16 +552,22 @@ public class MainActivity extends Activity {
 	    
 	    mMediaRecorder = new MediaRecorder();
 	    
+	    // store the quality profile required
+	    CamcorderProfile profile = CamcorderProfile.get(Camera.CameraInfo.CAMERA_FACING_BACK, CamcorderProfile.QUALITY_HIGH);
+	    
 	    // Step 1: Unlock and set camera to MediaRecorder
 	    mCamera.unlock();
 	    mMediaRecorder.setCamera(mCamera);
 
 	    // Step 2: Set sources
-	    mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.CAMCORDER);
 	    mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
-
-	    // Step 3: Set a CamcorderProfile (requires API Level 8 or higher)
-	    mMediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH));
+	    
+	    // Step 3: Set all values contained in profile except audio settings
+	    mMediaRecorder.setOutputFormat(profile.fileFormat);
+	    mMediaRecorder.setVideoEncoder(profile.videoCodec);
+	    mMediaRecorder.setVideoEncodingBitRate(profile.videoBitRate);
+	    mMediaRecorder.setVideoFrameRate(profile.videoFrameRate);
+	    mMediaRecorder.setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight);
 
 	    // Step 4: Set output file
 	    mMediaRecorder.setOutputFile(getOutputMediaFile(MEDIA_TYPE_VIDEO).toString());
@@ -572,7 +618,7 @@ public class MainActivity extends Activity {
 				if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("S")) {
 					if (isSampling) {
 						try {
-							dataFileStream.write(writeMessage.getBytes());
+							dataFileStream.write((writeMessage + "\n").getBytes());
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
