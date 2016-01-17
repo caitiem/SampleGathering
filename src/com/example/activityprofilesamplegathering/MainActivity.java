@@ -115,7 +115,7 @@ public class MainActivity extends Activity {
 		        	myConnectedThread.writeString("start_sample");	// tell arduino to start sampling
 		        	sampleNum = getNextFileSampleNum();		// get next file sample number
 		        	try {
-		        		sampleDirWithNum = new File(sampleDirectory, "Sample" + sampleNum);
+		        		sampleDirWithNum = new File(sampleDirectory, "Sample_" + sampleNum);
 		        		sampleDirWithNum.mkdirs();
 	        			dataFile = new File(sampleDirWithNum, "Sample" + sampleNum + ".txt");
 		        		Log.d(DTAG, "Directory: " +getApplicationContext().getFilesDir());
@@ -168,7 +168,7 @@ public class MainActivity extends Activity {
 			for (int i=0; i < directoryFiles.length; i++)
     		{
 				String name = directoryFiles[i].getName();
-				int nameInt = Integer.parseInt(name.substring(name.length()-1));
+				int nameInt = Integer.parseInt(name.substring(name.indexOf("_") + 1));
     		    if (nameInt > maxNum) {
     		    	maxNum = nameInt;
     		    }
@@ -474,7 +474,6 @@ public class MainActivity extends Activity {
 					bytes += mmInStream.read(buffer, bytes, buffer.length - bytes);
 					for(int i = begin; i < bytes; i++) {
 						if(buffer[i] == end) {
-//							mHandler.obtainMessage(1, begin, i, buffer).sendToTarget();
 							String writeMessage = new String(buffer);
 							writeMessage = writeMessage.substring(begin, i);
 							if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("S")) {
@@ -602,58 +601,6 @@ public class MainActivity extends Activity {
 	        	Log.d(DTAG, "Not sampling");
 	        }
 	    }
-	};
-	
-	Handler mHandler = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-		byte[] writeBuf = (byte[]) msg.obj;
-		int begin = (int)msg.arg1;
-		int end = (int)msg.arg2;
-
-		switch(msg.what) {
-			case 1:
-				String writeMessage = new String(writeBuf);
-				writeMessage = writeMessage.substring(begin, end);
-				if (writeMessage.length() != 0 && writeMessage.substring(0,1).equals("S")) {
-					if (isSampling) {
-						try {
-							dataFileStream.write((writeMessage + "\n").getBytes());
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-				} else if(writeMessage.length() != 0 && writeMessage.equals("stopped_sample")) {
-					Log.d(DTAG, "Stopped Sampling confirmation");
-					isSampling = false;
-					try {
-						dataFileStream.close();		// close data file
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					
-					// stop recording and release camera
-					if (isPrepared) {
-						try { 
-							mMediaRecorder.stop();	// stop the recording
-						}catch (Throwable t) {
-							t.printStackTrace();
-							Log.d(DTAG, "STOP FAILED: " + t);
-						}
-					}
-	                releaseMediaRecorder(); // release the MediaRecorder object
-	                if (mCamera != null) {
-	                	mCamera.lock();         // take camera access back from MediaRecorder
-	                }
-					
-//					showToast("Sampling has Stopped");
-					updateSamplingStatus("Not sampling.");
-					
-					enableToggle(true);		// enable toggle button since arduino stop confirmation has been received
-				}
-				break;
-			}
-		}
 	};
 	
 	/** Create a File for saving an image or video */
