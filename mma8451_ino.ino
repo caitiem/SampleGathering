@@ -37,6 +37,7 @@ byte end = '#';
 boolean isSampling = false;
 long sample_count;
 long unsigned int ms;
+int ms_delay = 50;
 
 RTC_DS1307 RTC;
 DateTime now;
@@ -96,13 +97,14 @@ void loop() {
   // print message on screen
   if (content != "") {
     Serial.println(content);
+    content.trim();
   }
-  content.trim();
   
-  if (content == "start_sample") {
+  if (content.substring(0, 12) == "start_sample") {
     isSampling = true;
     Serial.println("Starting sampling");
     sample_count = 0;
+    ms_delay = content.substring(content.lastIndexOf("_")+1).toInt();
   } else if (content == "stop_sample") {
     isSampling = false;
     Serial.println("Stopping sampling");
@@ -166,7 +168,7 @@ void loop() {
     sample_count++;
   }
   
-  delay(50);
+  delay(ms_delay);
 
 }
 
