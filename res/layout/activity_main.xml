@@ -54,4 +54,15 @@
         android:clickable="false"
         android:textIsSelectable="false" />
 
+    <Spinner
+        android:id="@+id/delay_spinner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/bluetooth_status"
+        android:layout_alignBottom="@+id/bluetooth_status"
+        android:layout_toRightOf="@+id/bluetooth_status"
+        android:layout_marginLeft="50dp"
+        android:entries="@array/ms_delays"
+        android:prompt="@string/delay_prompt" />
+
 </RelativeLayout>

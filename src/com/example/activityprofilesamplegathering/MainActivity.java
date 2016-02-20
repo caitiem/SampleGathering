@@ -36,9 +36,12 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.FrameLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
@@ -56,6 +59,8 @@ public class MainActivity extends Activity {
 	private static final int TURN_ON_BLUETOOTH_REQUEST = 1;
 	private TextView bluetoothText, samplingText;
 	private final int interval = 2000; // 2 Seconds
+	private int ms_delay;
+	private Spinner delaySpinner;
 	
 	private Camera mCamera;
     private CameraPreview mPreview;
@@ -82,6 +87,8 @@ public class MainActivity extends Activity {
 		deviceFound = false;
 		enableDiscovery = true;
 		readyToCommunicate = true;
+		
+		ms_delay = 50;
 		
 		// make directory to store sample data
 		sampleDirectory = new File("/sdcard/ActivityProfileSampleData/");
@@ -112,7 +119,7 @@ public class MainActivity extends Activity {
 		    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
 		        if (isChecked && connectedToArduino && readyToCommunicate) {
 		            // The toggle is enabled
-		        	myConnectedThread.writeString("start_sample");	// tell arduino to start sampling
+		        	myConnectedThread.writeString("start_sample_" + ms_delay);	// tell arduino to start sampling
 		        	sampleNum = getNextFileSampleNum();		// get next file sample number
 		        	try {
 		        		sampleDirWithNum = new File(sampleDirectory, "Sample_" + sampleNum);
@@ -120,6 +127,7 @@ public class MainActivity extends Activity {
 	        			dataFile = new File(sampleDirWithNum, "Sample" + sampleNum + ".txt");
 		        		Log.d(DTAG, "Directory: " +getApplicationContext().getFilesDir());
 						dataFileStream = new FileOutputStream(dataFile);
+						dataFileStream.write(("ms: " + ms_delay + "\n").getBytes());
 						isSampling = true;
 						Log.d(DTAG, "Starting sampling");
 						
@@ -138,6 +146,9 @@ public class MainActivity extends Activity {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 						isSampling = false;
+					} catch (IOException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
 					}
 		        } else if (!isChecked && connectedToArduino && readyToCommunicate){
 		            // The toggle is disabled
@@ -157,6 +168,18 @@ public class MainActivity extends Activity {
 		
 		// get camera_preview framelayout
 		cameraPreview = (FrameLayout) findViewById(R.id.camera_preview);
+		
+		delaySpinner = (Spinner) findViewById(R.id.delay_spinner);
+		delaySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            	ms_delay = position * 10 + 50;
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
 	}
 	
 	// get next folder sample number

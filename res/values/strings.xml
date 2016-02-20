@@ -4,5 +4,20 @@
     <string name="app_name">ActivityProfileSampleGathering</string>
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
+    <string name="delay_prompt">MS Delay</string>
+    
+    <string-array name="ms_delays">
+        <item>50</item>
+        <item>60</item>
+        <item>70</item>
+        <item>80</item>
+        <item>90</item>
+        <item>100</item>
+        <item>110</item>
+        <item>120</item>
+        <item>130</item>
+        <item>140</item>
+        <item>150</item>
+    </string-array>
 
 </resources>
